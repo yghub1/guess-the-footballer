@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guess the Football Player</title>
+<style>
+  :root {
+    --bg: #0d1f14;
+    --pitch: #14532d;
+    --card: #10291b;
+    --line: #2f6b45;
+    --text: #f1f5f2;
+    --muted: #a7c4b1;
+    --accent: #facc15;
+    --good: #22c55e;
+    --bad: #ef4444;
+    --p1: #38bdf8; --p2: #f472b6; --p3: #facc15; --p4: #a78bfa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--text);
+    background: radial-gradient(ellipse at top, var(--pitch), var(--bg) 70%);
+    display: flex; justify-content: center;
+  }
+  main { width: 100%; max-width: 720px; padding: 24px 16px 48px; }
+  h1 { text-align: center; font-size: clamp(28px, 6vw, 44px); margin: 8px 0 4px; letter-spacing: -0.5px; }
+  h1 span { color: var(--accent); }
+  .sub { text-align: center; color: var(--muted); margin: 0 0 28px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    padding: 24px; box-shadow: 0 10px 40px rgba(0,0,0,.35);
+  }
+  .hidden { display: none !important; }
+  label { display: block; color: var(--muted); font-size: 14px; margin-bottom: 8px; }
+  .count-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 22px; }
+  .count-row button { font-size: 22px; padding: 14px 0; }
+  .names { display: grid; gap: 10px; margin-bottom: 10px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 22px; }
+  .answer-ar { display: block; font-size: 20px; margin-top: 4px; }
+  .player-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .player-row select { width: auto; }
+  .levels { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 22px; }
+  .levels b { color: var(--text); }
+  input[type=text], select {
+    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: #0b1a11; color: var(--text); font-size: 16px;
+  }
+  button {
+    font: inherit; font-weight: 600; cursor: pointer; border-radius: 12px;
+    border: 1px solid var(--line); background: #0b1a11; color: var(--text); padding: 12px 18px;
+  }
+  button.selected { background: var(--accent); color: #1a1a1a; border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #1a1a1a; border-color: var(--accent); width: 100%; font-size: 18px; padding: 16px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 12px; align-items: center; }
+  .row > * { flex: 1; }
+
+  .scorebar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 16px; }
+  .chip {
+    padding: 6px 12px; border-radius: 999px; border: 2px solid transparent;
+    background: #0b1a11; font-size: 14px; display: flex; gap: 8px; align-items: center;
+  }
+  .chip b { font-variant-numeric: tabular-nums; }
+  .chip.active { border-color: currentColor; }
+
+  .turn-name { text-align: center; font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+  .round { text-align: center; color: var(--muted); font-size: 14px; margin-bottom: 8px; }
+  .task {
+    text-align: center; margin: 0 auto 14px; padding: 6px 14px; border-radius: 999px; width: fit-content;
+    background: #0b1a11; font-weight: 700; font-size: 15px;
+  }
+  .task.easy { color: var(--good); } .task.medium { color: var(--accent); } .task.hard { color: var(--bad); }
+
+  .photo-wrap {
+    position: relative; width: 100%; max-width: 360px; aspect-ratio: 3/4; margin: 0 auto 18px;
+    border-radius: 16px; overflow: hidden; background: #0b1a11; border: 1px solid var(--line);
+    display: grid; place-items: center;
+  }
+  .photo-wrap img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  .photo-wrap .loading { color: var(--muted); }
+
+  .timer { height: 12px; background: #0b1a11; border-radius: 999px; overflow: hidden; margin-bottom: 8px; }
+  .timer div { height: 100%; width: 100%; background: var(--good); transition: width .1s linear, background .3s; }
+  .time-text { text-align: center; font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; margin-bottom: 12px; }
+
+  .mic {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    color: var(--muted); min-height: 28px; margin-bottom: 8px;
+  }
+  .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--bad); }
+  .listening .dot { animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1);} 50% { opacity: .4; transform: scale(1.4);} }
+  .heard { text-align: center; font-size: 20px; min-height: 30px; font-style: italic; }
+
+  .result { text-align: center; padding: 14px; border-radius: 12px; margin-top: 14px; font-size: 20px; font-weight: 700; }
+  .result.good { background: rgba(34,197,94,.18); color: var(--good); }
+  .result.bad { background: rgba(239,68,68,.18); color: var(--bad); }
+  .result small { display: block; color: var(--text); font-weight: 500; font-size: 16px; margin-top: 6px; }
+
+  .typed { margin-top: 12px; }
+  .warn { background: rgba(250,204,21,.12); color: var(--accent); padding: 12px; border-radius: 10px; font-size: 14px; margin-bottom: 18px; }
+
+  .podium { display: grid; gap: 10px; margin: 18px 0 24px; }
+  .podium div { display: flex; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 12px; background: #0b1a11; font-size: 18px; }
+  .podium div:first-child { background: var(--accent); color: #1a1a1a; font-weight: 800; }
+  .podium small { opacity: .75; font-weight: 500; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>⚽ Guess the <span>Football Player</span></h1>
+  <p class="sub">See the player, say the name out loud before the time runs out.</p>
+
+  <!-- Setup -->
+  <section id="setup" class="card">
+    <div id="noSpeech" class="warn hidden">
+      This browser can't listen to your microphone. Open the game in Google Chrome or Safari to play by voice.
+      For now you can type your answers.
+    </div>
+    <div class="two-col">
+      <div>
+        <label for="country">Players from</label>
+        <select id="country">
+          <option value="world">🌍 World</option>
+          <option value="egypt">🇪🇬 Egypt</option>
+        </select>
+      </div>
+      <div>
+        <label for="micLang">Answer in</label>
+        <select id="micLang">
+          <option value="en-US">English</option>
+          <option value="ar-EG">العربية (Arabic)</option>
+        </select>
+      </div>
+    </div>
+    <label>How many players?</label>
+    <div class="count-row" id="countRow">
+      <button data-n="1" class="selected">1</button>
+      <button data-n="2">2</button>
+      <button data-n="3">3</button>
+      <button data-n="4">4</button>
+    </div>
+    <label>Players and difficulty</label>
+    <div class="names" id="names"></div>
+    <p class="levels">
+      <b>Easy</b> – say any of his names · 1 point · 20s<br>
+      <b>Medium</b> – say his full first and last name · 2 points · 20s<br>
+      <b>Hard</b> – say his nickname · 3 points · 15s
+    </p>
+    <label for="rounds">Players to guess each</label>
+    <select id="rounds" style="margin-bottom:22px">
+      <option value="3">3</option>
+      <option value="5" selected>5</option>
+      <option value="10">10</option>
+    </select>
+    <button class="primary" id="startBtn">Start game</button>
+  </section>
+
+  <!-- Game -->
+  <section id="game" class="card hidden">
+    <div class="scorebar" id="scorebar"></div>
+    <p class="turn-name" id="turnName"></p>
+    <p class="round" id="roundText"></p>
+    <p class="task" id="taskText"></p>
+
+    <div id="readyBox">
+      <button class="primary" id="goBtn">I'm ready, show the player</button>
+    </div>
+
+    <div id="playBox" class="hidden">
+      <div class="photo-wrap"><span class="loading" id="loading">Loading player…</span><img id="photo" alt="Mystery football player" class="hidden"></div>
+      <div class="timer"><div id="bar"></div></div>
+      <div class="time-text" id="timeText">20</div>
+      <div class="mic" id="mic"><span class="dot"></span><span id="micText">Starting microphone…</span></div>
+      <div class="heard" id="heard"></div>
+      <div class="typed hidden" id="typedBox">
+        <form class="row" id="typedForm">
+          <input type="text" id="typedInput" placeholder="Type your answer" autocomplete="off">
+          <button type="submit" style="flex:0 0 auto">Guess</button>
+        </form>
+      </div>
+      <div id="result" class="result hidden"></div>
+      <button class="primary hidden" id="nextBtn" style="margin-top:14px">Next</button>
+    </div>
+  </section>
+
+  <!-- Final -->
+  <section id="final" class="card hidden">
+    <p class="turn-name" id="winnerText"></p>
+    <div class="podium" id="podium"></div>
+    <div class="row">
+      <button id="againBtn">Play again</button>
+      <button id="menuBtn">Change players</button>
+    </div>
+  </section>
+</main>
+
+<script>
+// ---------- Footballers ----------
+// title:     Wikipedia page (used for the photo)
+// name:      how the name is shown
+// full:      full names accepted on Medium (defaults to `name`)
+// also:      extra names accepted on Easy (first name, surname, short forms)
+// nicknames: accepted on Hard; the first one is shown. Players without one are skipped on Hard.
+const FOOTBALLERS = [
+  { title: "Lionel Messi", name: "Lionel Messi", also: ["messi", "leo messi", "lionel", "leo"], nicknames: ["La Pulga", "the flea", "pulga"] },
+  { title: "Cristiano Ronaldo", name: "Cristiano Ronaldo", also: ["ronaldo", "cristiano"], nicknames: ["CR7", "cr seven", "c r seven", "c r 7"] },
+  { title: "Kylian Mbappé", name: "Kylian Mbappé", also: ["mbappe", "kylian"] },
+  { title: "Erling Haaland", name: "Erling Haaland", full: ["erling haaland", "erling holland"], also: ["haaland", "holland", "erling"], nicknames: ["The Terminator", "terminator", "the cyborg", "the android"] },
+  { title: "Neymar", name: "Neymar", full: ["neymar", "neymar jr", "neymar junior"] },
+  { title: "Mohamed Salah", name: "Mohamed Salah", full: ["mohamed salah", "mohammed salah", "mo salah"], also: ["salah"], nicknames: ["The Egyptian King", "egyptian king", "the pharaoh"] },
+  { title: "Kevin De Bruyne", name: "Kevin De Bruyne", also: ["de bruyne", "kevin"], nicknames: ["KDB", "k d b", "ginger pele"] },
+  { title: "Luka Modrić", name: "Luka Modrić", also: ["modric", "luka"] },
+  { title: "Robert Lewandowski", name: "Robert Lewandowski", also: ["lewandowski", "robert"], nicknames: ["Lewy", "levy", "lewi"] },
+  { title: "Harry Kane", name: "Harry Kane", also: ["kane", "harry"], nicknames: ["Hurricane", "the hurricane", "hurrikane"] },
+  { title: "Vinícius Júnior", name: "Vinícius Júnior", full: ["vinicius junior", "vinicius jr"], also: ["vinicius"], nicknames: ["Vini Jr", "vini junior", "vini"] },
+  { title: "Jude Bellingham", name: "Jude Bellingham", also: ["bellingham", "jude"] },
+  { title: "Virgil van Dijk", name: "Virgil van Dijk", also: ["van dijk", "virgil", "van dyke"], nicknames: ["VVD", "v v d"] },
+  { title: "Karim Benzema", name: "Karim Benzema", also: ["benzema", "karim"], nicknames: ["Big Benz", "benz", "kb9", "kb nine", "k b nine"] },
+  { title: "Zlatan Ibrahimović", name: "Zlatan Ibrahimović", also: ["zlatan", "ibrahimovic"], nicknames: ["Ibra", "ibracadabra"] },
+  { title: "Lamine Yamal", name: "Lamine Yamal", also: ["yamal", "lamine"] },
+  { title: "Bukayo Saka", name: "Bukayo Saka", also: ["saka", "bukayo"], nicknames: ["Starboy", "star boy"] },
+  { title: "Son Heung-min", name: "Son Heung-min", full: ["son heung min", "heung min son"], also: ["son"], nicknames: ["Sonny", "sunny"] },
+  { title: "Antoine Griezmann", name: "Antoine Griezmann", also: ["griezmann", "antoine"], nicknames: ["Grizi", "grizou", "grizzy"] },
+  { title: "Manuel Neuer", name: "Manuel Neuer", also: ["neuer", "manuel"] },
+  { title: "Sergio Ramos", name: "Sergio Ramos", also: ["ramos", "sergio"] },
+  { title: "Ronaldinho", name: "Ronaldinho", full: ["ronaldinho", "ronaldinho gaucho"], nicknames: ["Dinho", "r10", "r ten"] },
+  { title: "Zinedine Zidane", name: "Zinedine Zidane", also: ["zidane", "zinedine"], nicknames: ["Zizou", "zizu"] },
+  { title: "David Beckham", name: "David Beckham", also: ["beckham", "david"], nicknames: ["Becks", "goldenballs", "golden balls"] },
+  { title: "Thierry Henry", name: "Thierry Henry", also: ["henry", "thierry"], nicknames: ["Titi", "titty", "tee tee"] },
+  { title: "Wayne Rooney", name: "Wayne Rooney", also: ["rooney", "wayne"], nicknames: ["Wazza", "wazzer", "roo"] },
+  { title: "Andrés Iniesta", name: "Andrés Iniesta", also: ["iniesta", "andres"], nicknames: ["Don Andrés", "don andres", "the illusionist"] },
+  { title: "Xavi", name: "Xavi", full: ["xavi", "xavi hernandez", "xavier hernandez"] },
+  { title: "Pedri", name: "Pedri", full: ["pedri"] },
+  { title: "Phil Foden", name: "Phil Foden", also: ["foden", "phil"], nicknames: ["The Stockport Iniesta", "stockport iniesta"] },
+  { title: "Lautaro Martínez", name: "Lautaro Martínez", also: ["lautaro"], nicknames: ["El Toro", "the bull", "toro"] },
+  { title: "Bruno Fernandes", name: "Bruno Fernandes", also: ["fernandes", "bruno"] },
+  { title: "Marcus Rashford", name: "Marcus Rashford", also: ["rashford", "marcus"] },
+  { title: "Riyad Mahrez", name: "Riyad Mahrez", also: ["mahrez", "riyad"] },
+  { title: "Sadio Mané", name: "Sadio Mané", also: ["mane", "sadio"] },
+  { title: "Achraf Hakimi", name: "Achraf Hakimi", also: ["hakimi", "achraf"] },
+  { title: "Thibaut Courtois", name: "Thibaut Courtois", also: ["courtois", "thibaut"] },
+  { title: "Kaká", name: "Kaká", full: ["kaka", "ricardo kaka"] },
+  { title: "Paul Pogba", name: "Paul Pogba", also: ["pogba", "paul"], nicknames: ["Pogboom", "pog boom", "la pioche"] },
+  { title: "Jamal Musiala", name: "Jamal Musiala", also: ["musiala", "jamal"], nicknames: ["Bambi"] },
+  { title: "Florian Wirtz", name: "Florian Wirtz", also: ["wirtz", "florian"] },
+  { title: "Cole Palmer", name: "Cole Palmer", also: ["palmer", "cole"], nicknames: ["Cold Palmer", "cold"] },
+  { title: "Gianluigi Buffon", name: "Gianluigi Buffon", also: ["buffon", "gianluigi", "gigi buffon"], nicknames: ["Superman", "gigi"] },
+  { title: "Andrea Pirlo", name: "Andrea Pirlo", also: ["pirlo", "andrea"], nicknames: ["The Architect", "architect", "l architetto", "the maestro", "maestro"] },
+  { title: "Toni Kroos", name: "Toni Kroos", also: ["kroos", "toni"] },
+  { title: "Luis Suárez", name: "Luis Suárez", also: ["suarez", "luis"], nicknames: ["El Pistolero", "pistolero", "the gunslinger"] },
+  { title: "Gareth Bale", name: "Gareth Bale", also: ["bale", "gareth"] },
+  { title: "Eden Hazard", name: "Eden Hazard", also: ["hazard", "eden"] },
+];
+
+// Egyptian players. Names are listed in Arabic and in English spellings,
+// so answers count whether the mic is set to Arabic or English.
+// ar: the Arabic name shown with the answer.
+const EGYPT = [
+  { title: "Mohamed Salah", name: "Mohamed Salah", ar: "محمد صلاح",
+    full: ["mohamed salah", "mohammed salah", "mo salah", "محمد صلاح", "مو صلاح"], also: ["salah", "صلاح"],
+    nicknames: ["The Egyptian King", "egyptian king", "الملك المصري", "الملك"] },
+  { title: "Mohamed Aboutrika", name: "Mohamed Aboutrika", ar: "محمد أبو تريكة",
+    full: ["mohamed aboutrika", "mohamed abou treika", "محمد ابو تريكة", "محمد ابو تريكه"], also: ["aboutrika", "abou treika", "abu trika", "ابو تريكة", "تريكة"],
+    nicknames: ["El Magico", "magico", "الماجيكو", "ماجيكو", "Prince of Hearts", "امير القلوب", "amir el qolob"] },
+  { title: "Mahmoud El Khatib", name: "Mahmoud El Khatib", ar: "محمود الخطيب",
+    full: ["mahmoud el khatib", "mahmoud khatib", "محمود الخطيب"], also: ["el khatib", "khatib", "الخطيب"],
+    nicknames: ["Bibo", "بيبو", "beebo"] },
+  { title: "Ahmed Hassan (footballer, born 1975)", name: "Ahmed Hassan", ar: "أحمد حسن",
+    full: ["ahmed hassan", "احمد حسن"],
+    nicknames: ["El Ameed", "العميد", "el amid", "al ameed", "the dean"] },
+  { title: "Essam El Hadary", name: "Essam El Hadary", ar: "عصام الحضري",
+    full: ["essam el hadary", "essam hadary", "عصام الحضري"], also: ["el hadary", "hadary", "الحضري", "essam", "عصام"],
+    nicknames: ["The High Dam", "السد العالي", "high dam", "el sad el aali"] },
+  { title: "Hossam Hassan", name: "Hossam Hassan", ar: "حسام حسن",
+    full: ["hossam hassan", "hosam hassan", "حسام حسن"], also: ["hossam", "حسام"] },
+  { title: "Mohamed Zidan", name: "Mohamed Zidan", ar: "محمد زيدان",
+    full: ["mohamed zidan", "محمد زيدان"], also: ["zidan", "زيدان"] },
+  { title: "Mohamed Elneny", name: "Mohamed Elneny", ar: "محمد النني",
+    full: ["mohamed elneny", "mohamed el neny", "محمد النني"], also: ["elneny", "el neny", "النني"] },
+  { title: "Omar Marmoush", name: "Omar Marmoush", ar: "عمر مرموش",
+    full: ["omar marmoush", "عمر مرموش"], also: ["marmoush", "مرموش", "omar", "عمر"] },
+  { title: "Mostafa Mohamed (footballer)", name: "Mostafa Mohamed", ar: "مصطفى محمد",
+    full: ["mostafa mohamed", "mustafa mohamed", "مصطفى محمد"], also: ["mostafa", "مصطفى"] },
+  { title: "Trézéguet (Egyptian footballer)", name: "Trézéguet", ar: "تريزيجيه",
+    full: ["trezeguet", "mahmoud trezeguet", "mahmoud hassan", "تريزيجيه", "تريزجيه", "محمود تريزيجيه", "محمود حسن"],
+    nicknames: ["Trézéguet", "تريزيجيه", "تريزجيه"] },
+  { title: "Kahraba (footballer)", name: "Kahraba", ar: "كهربا",
+    full: ["kahraba", "mahmoud kahraba", "كهربا", "محمود كهربا", "mahmoud abdel moneim", "محمود عبد المنعم"],
+    nicknames: ["Kahraba", "كهربا", "كهرباء"] },
+  { title: "Ahmed Hegazi", name: "Ahmed Hegazi", ar: "أحمد حجازي",
+    full: ["ahmed hegazi", "ahmed hegazy", "احمد حجازي"], also: ["hegazi", "hegazy", "حجازي"] },
+  { title: "Mohamed Abou Gabal", name: "Mohamed Abou Gabal", ar: "محمد أبو جبل",
+    full: ["mohamed abou gabal", "mohamed abu gabal", "محمد ابو جبل"], also: ["abou gabal", "abu gabal", "ابو جبل"],
+    nicknames: ["Gabaski", "جباسكي", "gabasky"] },
+  { title: "Mohamed Barakat", name: "Mohamed Barakat", ar: "محمد بركات",
+    full: ["mohamed barakat", "محمد بركات"], also: ["barakat", "بركات"] },
+  { title: "Emad Moteab", name: "Emad Moteab", ar: "عماد متعب",
+    full: ["emad moteab", "emad meteb", "عماد متعب"], also: ["moteab", "meteb", "متعب", "emad", "عماد"] },
+  { title: "Shikabala", name: "Shikabala", ar: "شيكابالا",
+    full: ["shikabala", "شيكابالا", "mahmoud abdel razek", "محمود عبد الرازق"],
+    nicknames: ["Shikabala", "شيكابالا", "شيكا", "shika"] },
+  { title: "Saleh Selim", name: "Saleh Selim", ar: "صالح سليم",
+    full: ["saleh selim", "saleh salim", "صالح سليم"], also: ["selim", "سليم", "saleh", "صالح"],
+    nicknames: ["The Maestro", "المايسترو", "maestro", "مايسترو"] },
+  { title: "Hossam Ghaly", name: "Hossam Ghaly", ar: "حسام غالي",
+    full: ["hossam ghaly", "hossam ghali", "حسام غالي"], also: ["ghaly", "ghali", "غالي"] },
+  { title: "Zizo", name: "Zizo", ar: "زيزو",
+    full: ["zizo", "زيزو", "ahmed sayed", "احمد سيد", "ahmed sayed zizo"],
+    nicknames: ["Zizo", "زيزو", "zezo"] },
+  { title: "Mohamed El Shenawy", name: "Mohamed El Shenawy", ar: "محمد الشناوي",
+    full: ["mohamed el shenawy", "mohamed shenawy", "محمد الشناوي"], also: ["el shenawy", "shenawy", "الشناوي"] },
+  { title: "Hany Ramzy", name: "Hany Ramzy", ar: "هاني رمزي",
+    full: ["hany ramzy", "hani ramzi", "هاني رمزي"], also: ["ramzy", "رمزي"] },
+  { title: "Hazem Emam", name: "Hazem Emam", ar: "حازم إمام",
+    full: ["hazem emam", "hazem imam", "حازم امام"], also: ["hazem", "حازم"] },
+  { title: "Abdallah El Said", name: "Abdallah El Said", ar: "عبد الله السعيد",
+    full: ["abdallah el said", "abdullah el said", "abdallah said", "عبد الله السعيد"], also: ["el said", "السعيد"] },
+  { title: "Ahmed Fathy", name: "Ahmed Fathy", ar: "أحمد فتحي",
+    full: ["ahmed fathy", "ahmed fathi", "احمد فتحي"], also: ["fathy", "fathi", "فتحي"] },
+  { title: "Mido (footballer)", name: "Mido", ar: "ميدو",
+    full: ["mido", "ميدو", "ahmed hossam", "احمد حسام"],
+    nicknames: ["Mido", "ميدو", "meedo"] },
+  { title: "Wael Gomaa", name: "Wael Gomaa", ar: "وائل جمعة",
+    full: ["wael gomaa", "wael gomma", "وائل جمعة"], also: ["gomaa", "جمعة", "wael", "وائل"] },
+  { title: "Emam Ashour", name: "Emam Ashour", ar: "إمام عاشور",
+    full: ["emam ashour", "imam ashour", "امام عاشور"], also: ["ashour", "عاشور"] },
+  { title: "Ahmed Elmohamady", name: "Ahmed Elmohamady", ar: "أحمد المحمدي",
+    full: ["ahmed elmohamady", "ahmed el mohamady", "احمد المحمدي"], also: ["elmohamady", "el mohamady", "mohamady", "المحمدي"] },
+  { title: "Hussein El Shahat", name: "Hussein El Shahat", ar: "حسين الشحات",
+    full: ["hussein el shahat", "hussein shahat", "حسين الشحات"], also: ["el shahat", "shahat", "الشحات"] },
+  { title: "Mohamed Magdy", name: "Afsha", ar: "أفشة",
+    full: ["afsha", "افشة", "mohamed magdy", "محمد مجدي", "mohamed magdy afsha", "محمد مجدي افشة"],
+    nicknames: ["Afsha", "افشة"] },
+  { title: "Mohamed Shawky", name: "Mohamed Shawky", ar: "محمد شوقي",
+    full: ["mohamed shawky", "mohamed shawki", "محمد شوقي"], also: ["shawky", "shawki", "شوقي"] },
+  { title: "Amr Warda", name: "Amr Warda", ar: "عمرو وردة",
+    full: ["amr warda", "عمرو وردة", "عمرو ورده"], also: ["warda", "وردة"] },
+  { title: "Mohamed Hany", name: "Mohamed Hany", ar: "محمد هاني",
+    full: ["mohamed hany", "mohamed hani", "محمد هاني"], also: ["hany", "هاني"] },
+  { title: "Mohamed Abdelmonem", name: "Mohamed Abdelmonem", ar: "محمد عبد المنعم",
+    full: ["mohamed abdelmonem", "mohamed abdel moneim", "محمد عبد المنعم"], also: ["abdelmonem", "abdel moneim", "عبد المنعم"] },
+];
+
+// Country packs: which footballers are in play and which language the mic listens in by default.
+const PACKS = {
+  world: { label: "🌍 World", players: FOOTBALLERS, lang: "en-US" },
+  egypt: { label: "🇪🇬 Egypt", players: EGYPT, lang: "ar-EG" },
+};
+
+const LEVELS = {
+  easy:   { label: "Easy",   points: 1, seconds: 20, task: "Say any of his names" },
+  medium: { label: "Medium", points: 2, seconds: 20, task: "Say his full first and last name" },
+  hard:   { label: "Hard",   points: 3, seconds: 15, task: "Say his nickname" },
+};
+const COLORS = ["var(--p1)", "var(--p2)", "var(--p3)", "var(--p4)"];
+const $ = id => document.getElementById(id);
+
+// Which answers count for this footballer at this difficulty.
+function acceptedNames(f, level) {
+  const full = f.full || [f.name];
+  const nick = f.nicknames || [];
+  if (level === "hard") return nick;
+  if (level === "medium") return full;
+  return [f.name, ...full, ...(f.also || []), ...nick];
+}
+function eligible(f, level) { return acceptedNames(f, level).length > 0; }
+
+// ---------- Name matching ----------
+// Lowercase, drop accents, and smooth over Arabic spelling variants
+// (أ/إ/آ → ا, ى → ي, ة → ه, no tashkeel or tatweel) so the mic's spelling matches ours.
+function normalize(s) {
+  return s.normalize("NFD").replace(/[̀-ًͯ-ٰٟـ]/g, "")
+    .replace(/ى/g, "ي").replace(/ة/g, "ه")
+    .toLowerCase().replace(/[^a-z0-9ء-ي ]+/g, " ").replace(/\s+/g, " ").trim();
+}
+const isArabic = s => /[ء-ي]/.test(s);
+function similarity(a, b) {
+  if (a === b) return 1;
+  const m = a.length, n = b.length;
+  if (!m || !n) return 0;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return 1 - prev[n] / Math.max(m, n);
+}
+// True if the spoken text contains one of the accepted names (allowing small speech mistakes).
+// Hard mode is a little looser because nicknames are often foreign words the mic mishears.
+function isMatch(spoken, footballer, level) {
+  const words = normalize(spoken).split(" ").filter(Boolean);
+  const loose = level === "hard" ? 0.65 : 0.75;
+  for (const name of acceptedNames(footballer, level).map(normalize)) {
+    const nameWords = name.split(" ");
+    const target = nameWords.join("");
+    // Very short names must match exactly. Arabic is written without most vowels, so it's shorter.
+    const needed = target.length <= (isArabic(target) ? 3 : 4) ? 1 : loose;
+    for (let len = Math.max(1, nameWords.length - 1); len <= nameWords.length + 1; len++) {
+      for (let i = 0; i + len <= words.length; i++) {
+        if (similarity(words.slice(i, i + len).join(""), target) >= needed) return true;
+      }
+    }
+  }
+  return false;
+}
+
+// ---------- Photos from Wikipedia ----------
+const photoCache = new Map();
+async function loadPhoto(title) {
+  if (photoCache.has(title)) return photoCache.get(title);
+  const p = fetch("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(title.replace(/ /g, "_")))
+    .then(r => r.ok ? r.json() : null)
+    .then(d => d && (d.thumbnail || d.originalimage) ? (d.originalimage?.source || d.thumbnail.source) : null)
+    .catch(() => null)
+    .then(src => { if (!src) photoCache.delete(title); return src; });  // allow a retry later
+  photoCache.set(title, p);
+  return p;
+}
+
+// ---------- Speech recognition ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognizer = null;
+let listening = false;
+let micLang = "en-US";
+const LANG_FALLBACK = { "ar-EG": "ar-SA", "ar-SA": "en-US" };
+
+function startListening(onHeard) {
+  if (!SR) return;
+  listening = true;
+  recognizer = new SR();
+  recognizer.lang = micLang;
+  recognizer.continuous = true;
+  recognizer.interimResults = true;
+  recognizer.maxAlternatives = 5;
+  recognizer.onstart = () => setMic(true, "Listening… say your answer");
+  recognizer.onresult = e => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      onHeard(Array.from(res).map(a => a.transcript), res.isFinal);
+    }
+  };
+  recognizer.onerror = e => {
+    // Some browsers don't have Egyptian Arabic; fall back to standard Arabic, then English.
+    if (e.error === "language-not-supported" && LANG_FALLBACK[micLang]) {
+      micLang = LANG_FALLBACK[micLang];
+      recognizer.lang = micLang;
+      return;
+    }
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      listening = false;
+      setMic(false, "Microphone blocked. Allow mic access, or type below.");
+      $("typedBox").classList.remove("hidden");
+    }
+  };
+  // Chrome stops after a pause; restart while the turn is still running.
+  recognizer.onend = () => { if (listening) { try { recognizer.start(); } catch {} } };
+  try { recognizer.start(); } catch {}
+}
+function stopListening() {
+  listening = false;
+  if (recognizer) { try { recognizer.abort(); } catch {} recognizer = null; }
+  setMic(false, "");
+}
+function setMic(on, text) {
+  $("mic").classList.toggle("listening", on);
+  $("micText").textContent = text;
+}
+
+// ---------- Game state ----------
+let playerCount = 1;
+let players = [];        // { name, level, points, correct }
+let queue = [];          // footballer for each turn, in play order
+let turn = 0;
+let perPlayer = 5;
+let current = null;
+let timerId = null;
+let turnOver = false;
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+const whoseTurn = () => players[turn % players.length];
+
+function renderNames() {
+  const box = $("names");
+  const old = Array.from(box.querySelectorAll(".player-row")).map(r => ({
+    name: r.querySelector("input").value, level: r.querySelector("select").value,
+  }));
+  box.innerHTML = "";
+  for (let i = 0; i < playerCount; i++) {
+    const row = document.createElement("div");
+    row.className = "player-row";
+    row.innerHTML = `
+      <input type="text" placeholder="Player ${i + 1}" style="border-color:${COLORS[i]}">
+      <select aria-label="Difficulty for player ${i + 1}">
+        ${Object.entries(LEVELS).map(([k, l]) => `<option value="${k}">${l.label}</option>`).join("")}
+      </select>`;
+    row.querySelector("input").value = old[i]?.name || "";
+    row.querySelector("select").value = old[i]?.level || "easy";
+    box.appendChild(row);
+  }
+}
+
+$("countRow").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  playerCount = +b.dataset.n;
+  $("countRow").querySelectorAll("button").forEach(x => x.classList.toggle("selected", x === b));
+  renderNames();
+});
+
+$("country").addEventListener("change", () => { $("micLang").value = PACKS[$("country").value].lang; });
+
+let pack = FOOTBALLERS;  // footballers for the chosen country
+
+// Pick the next footballer for a player, avoiding repeats until the pool for their level runs out.
+function pickFor(level, used) {
+  let pool = pack.filter(f => eligible(f, level) && !used.has(f));
+  if (!pool.length) {
+    pack.filter(f => eligible(f, level)).forEach(f => used.delete(f));
+    pool = pack.filter(f => eligible(f, level));
+  }
+  const f = pool[Math.floor(Math.random() * pool.length)];
+  used.add(f);
+  return f;
+}
+
+function startGame() {
+  players = Array.from($("names").querySelectorAll(".player-row")).map((r, i) => ({
+    name: r.querySelector("input").value.trim() || "Player " + (i + 1),
+    level: r.querySelector("select").value,
+    points: 0, correct: 0,
+  }));
+  perPlayer = +$("rounds").value;
+  pack = PACKS[$("country").value].players;
+  micLang = $("micLang").value;
+  const used = new Set();
+  queue = [];
+  for (let t = 0; t < perPlayer * players.length; t++) queue.push(pickFor(players[t % players.length].level, used));
+  turn = 0;
+  show("game");
+  prepareTurn();
+}
+
+function show(id) {
+  ["setup", "game", "final"].forEach(s => $(s).classList.toggle("hidden", s !== id));
+}
+
+function renderScores() {
+  const who = turn % players.length;
+  $("scorebar").innerHTML = players.map((p, i) =>
+    `<span class="chip ${i === who ? "active" : ""}" style="color:${COLORS[i]}">
+       <span style="color:var(--text)">${escapeHtml(p.name)}</span><b>${p.points}</b></span>`).join("");
+}
+function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function prepareTurn() {
+  if (turn >= queue.length) return endGame();
+  const p = whoseTurn();
+  const lvl = LEVELS[p.level];
+  current = queue[turn];
+  renderScores();
+  $("turnName").textContent = players.length > 1 ? `${p.name}'s turn` : "Your turn";
+  $("turnName").style.color = COLORS[turn % players.length];
+  $("roundText").textContent = `Player ${Math.floor(turn / players.length) + 1} of ${perPlayer} · ${lvl.label} · ${lvl.points} pt${lvl.points > 1 ? "s" : ""}`;
+  $("taskText").textContent = lvl.task;
+  $("taskText").className = "task " + p.level;
+  $("readyBox").classList.toggle("hidden", players.length === 1 && turn > 0);
+  $("playBox").classList.add("hidden");
+  loadPhoto(current.title);                    // start loading early
+  if (queue[turn + 1]) loadPhoto(queue[turn + 1].title);
+  if (players.length === 1 && turn > 0) beginTurn();
+}
+
+async function beginTurn() {
+  turnOver = false;
+  const seconds = LEVELS[whoseTurn().level].seconds;
+  $("readyBox").classList.add("hidden");
+  $("playBox").classList.remove("hidden");
+  $("result").classList.add("hidden");
+  $("nextBtn").classList.add("hidden");
+  $("heard").textContent = "";
+  $("typedInput").value = "";
+  $("typedBox").classList.toggle("hidden", !!SR);
+  $("photo").classList.add("hidden");
+  $("loading").classList.remove("hidden");
+  $("loading").textContent = "Loading player…";
+  setBar(1);
+  $("timeText").textContent = seconds;
+
+  const src = await loadPhoto(current.title);
+  if (!src) {                               // no photo available, swap in another player
+    const level = whoseTurn().level;
+    const spare = pack.find(f => eligible(f, level) && !queue.includes(f))
+      || pack.filter(f => eligible(f, level))[0];
+    queue[turn] = current = spare;
+    return beginTurn();
+  }
+  const img = $("photo");
+  await new Promise(res => { img.onload = res; img.onerror = res; img.src = src; });
+  $("loading").classList.add("hidden");
+  img.classList.remove("hidden");
+
+  startListening(handleHeard);
+  if (!SR) $("typedInput").focus();
+  startTimer(seconds);
+}
+
+function handleHeard(alternatives, isFinal) {
+  if (turnOver) return;
+  const level = whoseTurn().level;
+  $("heard").textContent = "“" + alternatives[0] + "”";
+  if (alternatives.some(a => isMatch(a, current, level))) return finishTurn(true, alternatives[0]);
+  if (isFinal && alternatives[0].trim()) finishTurn(false, alternatives[0]);
+}
+
+function startTimer(seconds) {
+  const end = Date.now() + seconds * 1000;
+  clearInterval(timerId);
+  timerId = setInterval(() => {
+    const left = Math.max(0, end - Date.now());
+    setBar(left / (seconds * 1000));
+    $("timeText").textContent = Math.ceil(left / 1000);
+    if (left <= 0) finishTurn(false, null);
+  }, 100);
+}
+function setBar(frac) {
+  const bar = $("bar");
+  bar.style.width = (frac * 100) + "%";
+  bar.style.background = frac > 0.5 ? "var(--good)" : frac > 0.25 ? "var(--accent)" : "var(--bad)";
+}
+
+// The answer to show after a turn, e.g. "CR7 (Cristiano Ronaldo)" on Hard.
+function answerText(f, level) {
+  const ar = f.ar ? `<span class="answer-ar" dir="rtl">${escapeHtml(f.ar)}</span>` : "";
+  if (level === "hard" && f.nicknames[0] !== f.name) return `${escapeHtml(f.nicknames[0])} (${escapeHtml(f.name)})${ar}`;
+  return escapeHtml(f.name) + ar;
+}
+
+function finishTurn(correct, said) {
+  if (turnOver) return;
+  turnOver = true;
+  clearInterval(timerId);
+  stopListening();
+  const p = whoseTurn();
+  const lvl = LEVELS[p.level];
+  if (correct) { p.points += lvl.points; p.correct++; }
+  renderScores();
+  const r = $("result");
+  r.className = "result " + (correct ? "good" : "bad");
+  const answer = answerText(current, p.level);
+  if (correct) r.innerHTML = `✅ Correct! +${lvl.points}<small>It's ${answer}</small>`;
+  else if (said === null) r.innerHTML = `⏰ Time's up!<small>It was ${answer}</small>`;
+  else r.innerHTML = `❌ Wrong!<small>It was ${answer}</small>`;
+  r.classList.remove("hidden");
+  $("typedBox").classList.add("hidden");
+  const last = turn + 1 >= queue.length;
+  $("nextBtn").textContent = last ? "See results" : "Next";
+  $("nextBtn").classList.remove("hidden");
+  $("nextBtn").focus();
+  playSound(correct);
+}
+
+function playSound(good) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = good ? [523, 659, 784] : [300, 220];
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = f; o.type = good ? "triangle" : "sawtooth";
+      g.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.12);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.12 + 0.25);
+      o.connect(g).connect(ctx.destination);
+      o.start(ctx.currentTime + i * 0.12); o.stop(ctx.currentTime + i * 0.12 + 0.3);
+    });
+  } catch {}
+}
+
+function endGame() {
+  show("final");
+  const ranked = players.slice().sort((a, b) => b.points - a.points);
+  if (players.length === 1) {
+    const p = players[0];
+    $("winnerText").textContent = `You scored ${p.points} points (${p.correct} of ${perPlayer} correct)!`;
+  } else {
+    const top = ranked.filter(p => p.points === ranked[0].points);
+    $("winnerText").textContent = top.length > 1
+      ? "🤝 It's a draw between " + top.map(p => p.name).join(" and ") + "!"
+      : `🏆 ${top[0].name} wins!`;
+  }
+  $("podium").innerHTML = ranked.map(p =>
+    `<div><span>${escapeHtml(p.name)} <small>${LEVELS[p.level].label}</small></span>
+          <span>${p.points} pt${p.points === 1 ? "" : "s"} <small>(${p.correct}/${perPlayer})</small></span></div>`).join("");
+}
+
+$("startBtn").onclick = startGame;
+$("goBtn").onclick = beginTurn;
+$("nextBtn").onclick = () => { turn++; prepareTurn(); };
+$("againBtn").onclick = startGame;
+$("menuBtn").onclick = () => show("setup");
+$("typedForm").onsubmit = e => {
+  e.preventDefault();
+  const v = $("typedInput").value.trim();
+  if (!v || turnOver) return;
+  finishTurn(isMatch(v, current, whoseTurn().level), v);
+};
+
+if (!SR) $("noSpeech").classList.remove("hidden");
+renderNames();
+</script>
+</body>
+</html>
