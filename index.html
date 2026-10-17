@@ -38,7 +38,8 @@
   .count-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 22px; }
   .count-row button { font-size: 22px; padding: 14px 0; }
   .names { display: grid; gap: 10px; margin-bottom: 10px; }
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 22px; }
+  .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .status { display: block; font-size: 14px; font-weight: 500; color: var(--muted); margin-top: 8px; }
   .answer-ar { display: block; font-size: 20px; margin-top: 4px; }
   .player-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
   .player-row select { width: auto; }
@@ -126,6 +127,14 @@
         <select id="country">
           <option value="world">🌍 World</option>
           <option value="egypt">🇪🇬 Egypt</option>
+        </select>
+      </div>
+      <div>
+        <label for="era">Which players</label>
+        <select id="era">
+          <option value="all">Everyone</option>
+          <option value="active">Playing now (2026–27)</option>
+          <option value="retired">Retired legends</option>
         </select>
       </div>
       <div>
@@ -345,6 +354,38 @@ const EGYPT = [
     full: ["mohamed abdelmonem", "mohamed abdel moneim", "محمد عبد المنعم"], also: ["abdelmonem", "abdel moneim", "عبد المنعم"] },
 ];
 
+// Who is still playing, checked October 2026. Everyone not listed here is playing in the current season.
+// The number is the year they stopped playing, where it's certain.
+const SEASON = "2026–27";
+const RETIRED = {
+  "Zlatan Ibrahimović": 2023, "Ronaldinho": 2015, "Zinedine Zidane": 2006, "David Beckham": 2013,
+  "Thierry Henry": 2014, "Wayne Rooney": 2021, "Andrés Iniesta": 2024, "Xavi": 2019, "Kaká": 2017,
+  "Gianluigi Buffon": 2023, "Andrea Pirlo": 2017, "Toni Kroos": 2024, "Gareth Bale": 2023, "Eden Hazard": 2023,
+  "Mohamed Aboutrika": 2013, "Mahmoud El Khatib": 1988, "Ahmed Hassan": true, "Essam El Hadary": 2020,
+  "Hossam Hassan": true, "Mohamed Zidan": true, "Ahmed Hegazi": 2026, "Mohamed Barakat": 2013,
+  "Emad Moteab": true, "Shikabala": 2025, "Saleh Selim": 1967, "Hossam Ghaly": true, "Hany Ramzy": true,
+  "Hazem Emam": true, "Ahmed Fathy": 2024, "Mido": true, "Wael Gomaa": true, "Ahmed Elmohamady": 2021,
+  "Mohamed Shawky": true,
+};
+const FREE_AGENTS = ["Sergio Ramos", "Paul Pogba"];  // not retired, but without a club right now
+
+function status(f) {
+  if (f.name in RETIRED) return "retired";
+  if (FREE_AGENTS.includes(f.name)) return "free";
+  return "active";
+}
+const ERAS = {
+  all:     () => true,
+  active:  f => status(f) === "active",
+  retired: f => status(f) === "retired",
+};
+function statusText(f) {
+  const s = status(f);
+  if (s === "active") return `🟢 Playing in ${SEASON}`;
+  if (s === "free") return "🟡 Without a club right now";
+  return RETIRED[f.name] === true ? "⚪ Retired" : `⚪ Retired in ${RETIRED[f.name]}`;
+}
+
 // Country packs: which footballers are in play and which language the mic listens in by default.
 const PACKS = {
   world: { label: "🌍 World", players: FOOTBALLERS, lang: "en-US" },
@@ -519,14 +560,17 @@ $("countRow").addEventListener("click", e => {
 
 $("country").addEventListener("change", () => { $("micLang").value = PACKS[$("country").value].lang; });
 
-let pack = FOOTBALLERS;  // footballers for the chosen country
+let pack = FOOTBALLERS;  // footballers for the chosen country and era
+let fullPack = FOOTBALLERS;  // the whole country, used if the era leaves nobody for a difficulty
 
 // Pick the next footballer for a player, avoiding repeats until the pool for their level runs out.
 function pickFor(level, used) {
-  let pool = pack.filter(f => eligible(f, level) && !used.has(f));
+  let base = pack.filter(f => eligible(f, level));
+  if (!base.length) base = fullPack.filter(f => eligible(f, level));
+  let pool = base.filter(f => !used.has(f));
   if (!pool.length) {
-    pack.filter(f => eligible(f, level)).forEach(f => used.delete(f));
-    pool = pack.filter(f => eligible(f, level));
+    base.forEach(f => used.delete(f));
+    pool = base;
   }
   const f = pool[Math.floor(Math.random() * pool.length)];
   used.add(f);
@@ -540,7 +584,8 @@ function startGame() {
     points: 0, correct: 0,
   }));
   perPlayer = +$("rounds").value;
-  pack = PACKS[$("country").value].players;
+  fullPack = PACKS[$("country").value].players;
+  pack = fullPack.filter(ERAS[$("era").value]);
   micLang = $("micLang").value;
   const used = new Set();
   queue = [];
@@ -641,8 +686,9 @@ function setBar(frac) {
 // The answer to show after a turn, e.g. "CR7 (Cristiano Ronaldo)" on Hard.
 function answerText(f, level) {
   const ar = f.ar ? `<span class="answer-ar" dir="rtl">${escapeHtml(f.ar)}</span>` : "";
-  if (level === "hard" && f.nicknames[0] !== f.name) return `${escapeHtml(f.nicknames[0])} (${escapeHtml(f.name)})${ar}`;
-  return escapeHtml(f.name) + ar;
+  const st = `<span class="status">${statusText(f)}</span>`;
+  if (level === "hard" && f.nicknames[0] !== f.name) return `${escapeHtml(f.nicknames[0])} (${escapeHtml(f.name)})${ar}${st}`;
+  return escapeHtml(f.name) + ar + st;
 }
 
 function finishTurn(correct, said) {
