@@ -109,6 +109,7 @@
   .podium div:first-child { background: var(--accent); color: #1a1a1a; font-weight: 800; }
   .podium small { opacity: .75; font-weight: 500; font-size: 14px; }
 </style>
+<script src="packs.js"></script>
 </head>
 <body>
 <main>
@@ -125,8 +126,12 @@
       <div>
         <label for="country">Players from</label>
         <select id="country">
-          <option value="world">🌍 World</option>
-          <option value="egypt">🇪🇬 Egypt</option>
+          <optgroup label="Countries">
+            <option value="world">🌍 World</option>
+            <option value="egypt">🇪🇬 Egypt</option>
+          </optgroup>
+          <optgroup label="Leagues" id="leagueOptions"></optgroup>
+          <optgroup label="Clubs" id="clubOptions"></optgroup>
         </select>
       </div>
       <div>
@@ -369,7 +374,21 @@ const RETIRED = {
 };
 const FREE_AGENTS = ["Sergio Ramos", "Paul Pogba"];  // not retired, but without a club right now
 
+// Country packs: which footballers are in play and which language the mic listens in by default.
+// League and club packs are added below from packs.js; they also have `now`, the players there this season.
+const PACKS = {
+  world: { label: "🌍 World", players: FOOTBALLERS, lang: "en-US" },
+  egypt: { label: "🇪🇬 Egypt", players: EGYPT, lang: "ar-EG" },
+};
+let activePack = PACKS.world;
+
+// For country packs: playing anywhere / without a club / retired.
+// For league and club packs: there now / former player.
 function status(f) {
+  if (activePack.now) {
+    if (f.name in RETIRED || f.dead) return "former";
+    return activePack.now.has(f.q) ? "active" : "former";
+  }
   if (f.name in RETIRED) return "retired";
   if (FREE_AGENTS.includes(f.name)) return "free";
   return "active";
@@ -377,20 +396,57 @@ function status(f) {
 const ERAS = {
   all:     () => true,
   active:  f => status(f) === "active",
-  retired: f => status(f) === "retired",
+  retired: f => status(f) === "retired" || status(f) === "former",
 };
 function statusText(f) {
   const s = status(f);
+  if (activePack.now) {
+    const p = activePack;
+    const where = p.kind === "club" ? `at ${p.name}` : /^(La Liga|Serie A)$/.test(p.name) ? `in ${p.name}` : `in the ${p.name}`;
+    if (s === "active") return `🟢 Playing ${where} now` + (p.kind === "league" && f.club ? ` · ${f.club}` : "");
+    const after = f.name in RETIRED ? " · retired" : f.dead ? "" : f.club ? ` · now at ${f.club}` : "";
+    return `⚪ Former ${p.name} player${after}`;
+  }
   if (s === "active") return `🟢 Playing in ${SEASON}`;
   if (s === "free") return "🟡 Without a club right now";
   return RETIRED[f.name] === true ? "⚪ Retired" : `⚪ Retired in ${RETIRED[f.name]}`;
 }
 
-// Country packs: which footballers are in play and which language the mic listens in by default.
-const PACKS = {
-  world: { label: "🌍 World", players: FOOTBALLERS, lang: "en-US" },
-  egypt: { label: "🇪🇬 Egypt", players: EGYPT, lang: "ar-EG" },
-};
+// ---------- League and club packs (generated into packs.js by tools/build_packs.py) ----------
+// Players we wrote by hand above keep their nicknames and spellings when they show up in a league or club.
+const CURATED = new Map([...FOOTBALLERS, ...EGYPT].map(f => [f.title, f]));
+const fromWikidataCache = new Map();
+
+// "Mohamed El Shenawy" → ["Shenawy", "El Shenawy"], so Easy accepts the surname.
+function surnames(name) {
+  const w = (name || "").split(" ");
+  return w.length > 1 ? [w.at(-1), w.slice(-2).join(" ")] : [];
+}
+function fromWikidata(q) {
+  if (fromWikidataCache.has(q)) return fromWikidataCache.get(q);
+  const d = PACK_PLAYERS[q];
+  const cur = CURATED.get(d.title);
+  const arName = cur?.ar || d.ar;
+  const f = {
+    q, title: d.title, img: d.img, club: d.club, dead: d.dead,
+    name: cur?.name || d.name,
+    ar: arName,
+    full: [...(cur ? cur.full || [cur.name] : [d.name]), ...(arName ? [arName] : [])],
+    also: [...(cur?.also || []), ...surnames(d.name), ...surnames(d.ar), ...(d.also || [])]
+      .filter(s => normalize(s).replace(/ /g, "").length >= 3),
+    nicknames: cur?.nicknames || (d.nick?.length ? d.nick : undefined),
+  };
+  fromWikidataCache.set(q, f);
+  return f;
+}
+function addLeaguePacks() {
+  if (typeof LEAGUE_PACKS === "undefined") return;
+  for (const [key, p] of Object.entries(LEAGUE_PACKS)) {
+    PACKS[key] = { label: p.label, lang: p.lang, kind: p.kind, name: p.name, now: new Set(p.now),
+                   players: p.players.map(fromWikidata) };
+    $(p.kind === "club" ? "clubOptions" : "leagueOptions").appendChild(new Option(p.label, key));
+  }
+}
 
 const LEVELS = {
   easy:   { label: "Easy",   points: 1, seconds: 20, task: "Say any of his names" },
@@ -454,6 +510,7 @@ function isMatch(spoken, footballer, level) {
 
 // ---------- Photos from Wikipedia ----------
 const photoCache = new Map();
+const badPhotos = new Set();  // players whose photo failed to load this session
 async function loadPhoto(title) {
   if (photoCache.has(title)) return photoCache.get(title);
   const p = fetch("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(title.replace(/ /g, "_")))
@@ -463,6 +520,12 @@ async function loadPhoto(title) {
     .then(src => { if (!src) photoCache.delete(title); return src; });  // allow a retry later
   photoCache.set(title, p);
   return p;
+}
+// League and club players come with a photo URL; preload it so it shows at once.
+function photoFor(f) {
+  if (!f.img) return loadPhoto(f.title);
+  new Image().src = f.img;
+  return Promise.resolve(f.img);
 }
 
 // ---------- Speech recognition ----------
@@ -558,7 +621,15 @@ $("countRow").addEventListener("click", e => {
   renderNames();
 });
 
-$("country").addEventListener("change", () => { $("micLang").value = PACKS[$("country").value].lang; });
+// Switching pack sets the mic language and words the era choice for a country or a league/club.
+function onPackChange() {
+  const p = PACKS[$("country").value];
+  $("micLang").value = p.lang;
+  const [active, former] = $("era").querySelectorAll("option[value=active], option[value=retired]");
+  active.textContent = p.now ? `Current players (${SEASON})` : `Playing now (${SEASON})`;
+  former.textContent = p.now ? "Former players" : "Retired legends";
+}
+$("country").addEventListener("change", onPackChange);
 
 let pack = FOOTBALLERS;  // footballers for the chosen country and era
 let fullPack = FOOTBALLERS;  // the whole country, used if the era leaves nobody for a difficulty
@@ -567,6 +638,8 @@ let fullPack = FOOTBALLERS;  // the whole country, used if the era leaves nobody
 function pickFor(level, used) {
   let base = pack.filter(f => eligible(f, level));
   if (!base.length) base = fullPack.filter(f => eligible(f, level));
+  // Still nobody (e.g. Hard in a pack without nicknames): use the hand-made country list
+  if (!base.length) base = (activePack.lang === "ar-EG" ? EGYPT : FOOTBALLERS).filter(f => eligible(f, level));
   let pool = base.filter(f => !used.has(f));
   if (!pool.length) {
     base.forEach(f => used.delete(f));
@@ -584,7 +657,8 @@ function startGame() {
     points: 0, correct: 0,
   }));
   perPlayer = +$("rounds").value;
-  fullPack = PACKS[$("country").value].players;
+  activePack = PACKS[$("country").value];
+  fullPack = activePack.players;
   pack = fullPack.filter(ERAS[$("era").value]);
   micLang = $("micLang").value;
   const used = new Set();
@@ -620,8 +694,8 @@ function prepareTurn() {
   $("taskText").className = "task " + p.level;
   $("readyBox").classList.toggle("hidden", players.length === 1 && turn > 0);
   $("playBox").classList.add("hidden");
-  loadPhoto(current.title);                    // start loading early
-  if (queue[turn + 1]) loadPhoto(queue[turn + 1].title);
+  photoFor(current);                           // start loading early
+  if (queue[turn + 1]) photoFor(queue[turn + 1]);
   if (players.length === 1 && turn > 0) beginTurn();
 }
 
@@ -641,16 +715,18 @@ async function beginTurn() {
   setBar(1);
   $("timeText").textContent = seconds;
 
-  const src = await loadPhoto(current.title);
-  if (!src) {                               // no photo available, swap in another player
+  const src = await photoFor(current);
+  const img = $("photo");
+  const loaded = src && await new Promise(res => { img.onload = () => res(true); img.onerror = () => res(false); img.src = src; });
+  if (!loaded) {                            // no photo available, swap in another player
+    badPhotos.add(current);
     const level = whoseTurn().level;
-    const spare = pack.find(f => eligible(f, level) && !queue.includes(f))
-      || pack.filter(f => eligible(f, level))[0];
+    const ok = f => eligible(f, level) && !badPhotos.has(f);
+    const spare = pack.find(f => ok(f) && !queue.includes(f)) || pack.find(ok);
+    if (!spare) { $("loading").textContent = "Couldn't load player photos. Check your internet connection."; return; }
     queue[turn] = current = spare;
     return beginTurn();
   }
-  const img = $("photo");
-  await new Promise(res => { img.onload = res; img.onerror = res; img.src = src; });
   $("loading").classList.add("hidden");
   img.classList.remove("hidden");
 
@@ -760,6 +836,7 @@ $("typedForm").onsubmit = e => {
 };
 
 if (!SR) $("noSpeech").classList.remove("hidden");
+addLeaguePacks();
 renderNames();
 </script>
 </body>
